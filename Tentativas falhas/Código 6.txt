@@ -1,0 +1,34 @@
+-- FUNÇÃO PARA CALCULAR A DISTANCIA DA PARADA
+CREATE FUNCTION calcular_distancia (lat FLOAT, lon FLOAT, stop_lat FLOAT, stop_lon FLOAT)
+RETURNS FLOAT
+DETERMINISTIC
+RETURN (6371 * acos(
+ cos( radians(lat) )
+ * cos( radians( stop_lat ) )
+ * cos( radians( stop_lon ) - radians(lon) )
+ + sin( radians(lat) )
+ * sin( radians( stop_lat ) ) 
+ )
+);
+
+-- CÓDIGO
+SELECT stop_id, stop_name, calcular_distancia(-30.03166, -51.2314272, stop_lat, stop_lon) as dist 
+    FROM stops
+    ORDER BY dist
+    LIMIT 10;
+    
+SELECT stop_id, stop_name, calcular_distancia(-30.142133, -51.323412, stop_lat, stop_lon) as dist
+	FROM stops
+    ORDER BY dist
+    LIMIT 10;
+
+CREATE VIEW teste AS
+SELECT stop_times.trip_id AS Trip, calcular_distancia(-30.142133, -51.323412, stops.stop_lat, stops.stop_lon) AS fim, stop_times.stop_id, stop_times.stop_sequence AS seqfim FROM stop_times
+INNER JOIN stops ON stops.stop_id = stop_times.stop_id;
+
+CREATE VIEW testedois AS
+SELECT stop_times.trip_id AS Trip, calcular_distancia(-30.03166, -51.2314272, stops.stop_lat, stops.stop_lon) AS inicio, stop_times.stop_id, stop_times.stop_sequence AS seqinicio FROM stop_times
+INNER JOIN stops ON stops.stop_id = stop_times.stop_id;
+
+select * from teste;
+select * from testedois;

@@ -1,0 +1,41 @@
+create view inicio AS
+SELECT stop_id,
+(6371 * acos(
+ cos( radians(-30.154879) )
+ * cos( radians( stop_lat ) )
+ * cos( radians( stop_lon ) - radians(-51.211810) )
+ + sin( radians(-30.154879) )
+ * sin( radians( stop_lat ) ) 
+ )
+) AS distancia
+FROM stops
+ORDER BY distancia;
+
+create view fim AS
+SELECT stop_id,
+(6371 * acos(
+ cos( radians(-30.053831) )
+ * cos( radians( stop_lat ) )
+ * cos( radians( stop_lon ) - radians(-51.191810) )
+ + sin( radians(-30.053831) )
+ * sin( radians( stop_lat ) ) 
+ )
+) AS distancia
+FROM stops
+ORDER BY distancia;
+
+CREATE VIEW stops_inicio AS
+SELECT DISTINCT stop_times.trip_id, stop_times.stop_id, inicio.distancia, stop_times.stop_sequence FROM stop_times
+INNER JOIN inicio ON stop_times.stop_id = inicio.stop_id
+ORDER BY inicio.distancia;
+
+select * from stops_inicio;
+select * from stops_fim;
+
+CREATE VIEW stops_fim AS
+SELECT DISTINCT stop_times.trip_id, stop_times.stop_id, fim.distancia, stop_times.stop_sequence FROM stop_times
+INNER JOIN fim ON stop_times.stop_id = fim.stop_id
+ORDER BY fim.distancia;
+
+CREATE VIEW stops_total AS
+SELECT trip_id FROM stops_fim

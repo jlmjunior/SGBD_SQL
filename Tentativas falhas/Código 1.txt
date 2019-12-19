@@ -1,0 +1,13 @@
+SELECT stop_id,
+(6371 * acos(
+ cos( radians(-30.053831) )
+ * cos( radians( stop_lat ) )
+ * cos( radians( stop_lon ) - radians(-51.191810) )
+ + sin( radians(-30.053831) )
+ * sin( radians( stop_lat ) ) 
+ )
+) AS distancia
+FROM stops
+HAVING distancia < 1
+ORDER BY distancia ASC
+LIMIT 5;

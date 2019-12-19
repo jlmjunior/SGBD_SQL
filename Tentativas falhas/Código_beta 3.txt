@@ -1,0 +1,53 @@
+-- ##################  FUNÇÃO PARA CALCULAR A DISTANCIA DA PARADA ################## 
+
+CREATE FUNCTION calcular_distancia (lat FLOAT, lon FLOAT, stop_lat FLOAT, stop_lon FLOAT)
+RETURNS FLOAT
+DETERMINISTIC
+RETURN (6371 * acos(
+ cos( radians(lat) )
+ * cos( radians( stop_lat ) )
+ * cos( radians( stop_lon ) - radians(lon) )
+ + sin( radians(lat) )
+ * sin( radians( stop_lat ) ) 
+ )
+);
+
+-- ##################  PROCEDIMENTO ################## 
+
+SELECT routes.route_id, routes.route_long_name AS nome_rota, ultima.parada_inicial, ultima.parada_final
+FROM(
+	SELECT trips.route_id, ordem.trip, ordem.parada_inicial, ordem.parada_final
+	FROM(
+		SELECT comeco.trip, comeco.nome_parada AS parada_inicial, termino.nome_parada AS parada_final, (comeco.inicio + termino.fim) AS total
+		FROM (
+			SELECT DISTINCT (dois.trip), dois.inicio, parada, nome_parada, sequencia
+			FROM (
+				SELECT stop_times.trip_id AS trip,
+				stop_times.stop_id AS parada,
+				stop_times.stop_sequence AS sequencia,
+				stops.stop_name AS nome_parada,
+				calcular_distancia(-30.037419,-51.231602, stop_lat, stop_lon) AS inicio
+				FROM stop_times
+				INNER JOIN stops ON stops.stop_id = stop_times.stop_id
+			) AS dois
+			ORDER BY dois.inicio
+		) AS comeco
+		INNER JOIN (
+			SELECT DISTINCT (dois.trip), dois.fim, parada, nome_parada, sequencia
+			FROM (
+				SELECT stop_times.trip_id AS trip,
+				stop_times.stop_id AS parada,
+				stop_times.stop_sequence AS sequencia,
+				stops.stop_name AS nome_parada,
+				calcular_distancia(-30.046362,-51.229208, stop_lat, stop_lon) AS fim
+				FROM stop_times
+				INNER JOIN stops ON stops.stop_id = stop_times.stop_id
+			) AS dois
+			ORDER BY dois.fim
+		) termino ON termino.trip = comeco.trip AND termino.sequencia > comeco.sequencia
+		ORDER BY total
+		LIMIT 1
+	) AS ordem
+	INNER JOIN trips ON ordem.trip = trips.trip_id
+) AS ultima
+INNER JOIN routes ON routes.route_id = ultima.route_id;

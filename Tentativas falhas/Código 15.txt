@@ -1,0 +1,51 @@
+ SELECT menor_fim_three.*
+ FROM (
+    SELECT trip, min(fim) AS fim, parada, sequencia, nome_parada
+    FROM (
+		SELECT stop_times.trip_id AS trip,
+		stop_times.stop_id AS parada,
+		stop_times.stop_sequence AS sequencia,
+		stops.stop_name AS nome_parada,
+		calcular_distancia(-30.046362,-51.229208, stop_lat, stop_lon) AS fim -- COORDENADA DO FIM
+		FROM stop_times
+		INNER JOIN stops ON stops.stop_id = stop_times.stop_id
+    ) AS menor_fim_one
+    GROUP BY trip
+) AS menor_fim_two
+JOIN (
+	SELECT stop_times.trip_id AS trip,
+		stop_times.stop_id AS parada,
+		stop_times.stop_sequence AS sequencia,
+		stops.stop_name AS nome_parada,
+		calcular_distancia(-30.046362,-51.229208, stop_lat, stop_lon) AS fim -- COORDENADA DO FIM
+		FROM stop_times
+		INNER JOIN stops ON stops.stop_id = stop_times.stop_id
+) AS menor_fim_three
+ON menor_fim_three.trip = menor_fim_two.trip
+AND menor_fim_three.fim = menor_fim_two.fim;
+
+SELECT menor_inicio_three.*
+ FROM (
+    SELECT trip, min(inicio) AS inicio, parada, sequencia, nome_parada
+    FROM (
+		SELECT stop_times.trip_id AS trip,
+		stop_times.stop_id AS parada,
+		stop_times.stop_sequence AS sequencia,
+		stops.stop_name AS nome_parada,
+		calcular_distancia(-30.037419,-51.231602, stop_lat, stop_lon) AS inicio -- COORDENADA DO INICIO
+		FROM stop_times
+		INNER JOIN stops ON stops.stop_id = stop_times.stop_id
+    ) AS menor_inicio_one
+    GROUP BY trip
+) AS menor_inicio_two
+JOIN (
+	SELECT stop_times.trip_id AS trip,
+		stop_times.stop_id AS parada,
+		stop_times.stop_sequence AS sequencia,
+		stops.stop_name AS nome_parada,
+		calcular_distancia(-30.037419,-51.231602, stop_lat, stop_lon) AS inicio -- COORDENADA DO INICIO
+		FROM stop_times
+		INNER JOIN stops ON stops.stop_id = stop_times.stop_id
+) AS menor_inicio_three
+ON menor_inicio_three.trip = menor_inicio_two.trip
+AND menor_inicio_three.inicio = menor_inicio_two.inicio;
