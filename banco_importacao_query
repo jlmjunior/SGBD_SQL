@@ -1,0 +1,157 @@
+-- -----------------------------------------------------
+-- Schema banco
+-- -----------------------------------------------------
+CREATE SCHEMA IF NOT EXISTS `banco_jose` DEFAULT CHARACTER SET utf8mb4 ;
+USE `banco_jose` ;
+
+-- -----------------------------------------------------
+-- Table `banco`.`routes`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `banco_jose`.`routes` (
+  `route_id` VARCHAR(45) NOT NULL,
+  `route_short_name` VARCHAR(60) NULL,
+  `route_long_name` VARCHAR(100) NULL,
+  PRIMARY KEY (`route_id`))
+ENGINE = InnoDB;
+
+
+-- -----------------------------------------------------
+-- Table `banco`.`trips`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `banco_jose`.`trips` (
+  `trip_id` VARCHAR(45) NOT NULL,
+  `route_id` VARCHAR(45) NOT NULL,
+  PRIMARY KEY (`trip_id`),
+  INDEX `fk_trips_routes_idx` (`route_id` ASC) VISIBLE,
+  CONSTRAINT `fk_trips_routes`
+    FOREIGN KEY (`route_id`)
+    REFERENCES `banco_jose`.`routes` (`route_id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION)
+ENGINE = InnoDB;
+
+
+-- -----------------------------------------------------
+-- Table `banco`.`stops`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `banco_jose`.`stops` (
+  `stop_id` VARCHAR(45) NOT NULL,
+  `stop_name` VARCHAR(100) NULL,
+  `stop_lat` DECIMAL(10,6) NULL,
+  `stop_lon` DECIMAL(10,6) NULL,
+  PRIMARY KEY (`stop_id`))
+ENGINE = InnoDB;
+
+
+-- -----------------------------------------------------
+-- Table `banco`.`stop_times`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `banco_jose`.`stop_times` (
+  `idStop_times` INT NOT NULL AUTO_INCREMENT,
+  `trip_id` VARCHAR(45) NOT NULL,
+  `stop_id` VARCHAR(45) NOT NULL,
+  `stop_sequence` INT NULL,
+  PRIMARY KEY (`idStop_times`),
+  INDEX `fk_stop_times_trips1_idx` (`trip_id` ASC) VISIBLE,
+  INDEX `fk_stop_times_stops1_idx` (`stop_id` ASC) VISIBLE,
+  CONSTRAINT `fk_stop_times_trips1`
+    FOREIGN KEY (`trip_id`)
+    REFERENCES `banco_jose`.`trips` (`trip_id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_stop_times_stops1`
+    FOREIGN KEY (`stop_id`)
+    REFERENCES `banco_jose`.`stops` (`stop_id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION)
+ENGINE = InnoDB;
+
+-- -----------------------------------------------------
+-- IMPORTAÇÃO DOS DADOS
+-- -----------------------------------------------------
+LOAD DATA INFILE 'stops.csv' INTO TABLE stops
+FIELDS TERMINATED BY ','
+OPTIONALLY ENCLOSED BY '"' 
+LINES TERMINATED BY '\n'
+IGNORE 1 LINES
+(stop_id,@ignore,stop_name,@ignore,stop_lat,stop_lon);
+
+LOAD DATA INFILE 'routes.csv' INTO TABLE routes
+FIELDS TERMINATED BY ','
+OPTIONALLY ENCLOSED BY '"' 
+LINES TERMINATED BY '\n'
+IGNORE 1 LINES
+(route_id,@ignore,route_short_name,route_long_name,@ignore,@ignore,@ignore,@ignore,@ignore);
+
+LOAD DATA INFILE 'trips.csv' INTO TABLE trips
+FIELDS TERMINATED BY ','
+OPTIONALLY ENCLOSED BY '"' 
+LINES TERMINATED BY '\n'
+IGNORE 1 LINES
+(route_id,@ignore,trip_id,@ignore,@ignore,@ignore,@ignore,@ignore,@ignore,@ignore);
+
+LOAD DATA INFILE 'stop_times.csv' INTO TABLE stop_times
+FIELDS TERMINATED BY ','
+OPTIONALLY ENCLOSED BY '"' 
+LINES TERMINATED BY '\n'
+IGNORE 1 LINES
+(trip_id,@ignore,@ignore,stop_id,stop_sequence);
+
+-- -----------------------------------------------------
+-- FUNÇÕES E QUERY
+-- -----------------------------------------------------
+CREATE FUNCTION `to_rad` (val FLOAT) RETURNS FLOAT DETERMINISTIC
+    RETURN val * PI() / 180.0;
+
+CREATE FUNCTION `st_distance_sphere` (lat1 POINT, lon1 POINT, lat2 POINT, lon2 POINT)
+   RETURNS FLOAT
+   DETERMINISTIC
+   RETURN
+	( SELECT
+        SQRT(POWER(SIN(to_rad(lat2-lat1))/2,2) +
+             COS(to_rad(lat1)) * COS(to_rad(lat2)) *
+             POWER(SIN(to_rad(lon2-lon1))/2,2)),
+        SQRT(1 - POWER(SIN(to_rad(lat2-lat1))/2,2) +
+             COS(to_rad(lat1)) * COS(to_rad(lat2)) *
+             POWER(SIN(to_rad(lon2-lon1))/2,2))
+	);
+
+-- ##################  CÓDIGO DESENVOLVIDO PARA REALIZAR A BUSCA DA ROTA  ################## 
+
+SELECT func.trip_id , routes.route_id, routes.route_long_name, func.inicio AS id_inicio, func.nome_inicio, func.fim AS id_fim, func.nome_fim FROM routes
+INNER JOIN(
+	SELECT trips.route_id, beta.trip_id, beta.inicio, beta.nome_inicio, beta.fim, beta.nome_fim, beta.total_dist FROM trips
+	INNER JOIN (
+		SELECT terminal.trip_id, terminal.inicio, inicial.nome_inicio, terminal.fim, inicial.nome_fim, total_dist
+		FROM (
+			SELECT comeco.stop_id AS parada_inicial, comeco.stop_name AS nome_inicio, final.stop_id AS parada_final, final.stop_name AS nome_fim,comeco.dist AS comeco, final.dist AS final, (comeco.dist + final.dist) AS total_dist
+			FROM (
+				-- COLOQUE AQUI A COORDENADA INICIAL
+				SELECT stop_id, stop_name, st_distance_sphere(POINT(-29.997559,-51.157838), POINT(stop_lat, stop_lon)) as dist
+				FROM stops
+				ORDER BY dist
+                -- POSSÍVEL AUMENTAR A PRECISÃO, PODE SER ÚTIL EM CASOS DE MUITAS PARADAS E POUCAS LINHAS 
+				LIMIT 10
+			) AS comeco, (
+				-- COLOQUE AQUI A COORDENADA FINAL
+				SELECT stop_id, stop_name, st_distance_sphere(POINT(-30.00309,-51.180682), POINT(stop_lat, stop_lon)) as dist
+				FROM stops
+				ORDER BY dist
+                -- POSSÍVEL AUMENTAR A PRECISÃO, PODE SER ÚTIL EM CASOS DE MUITAS PARADAS E POUCAS LINHAS
+				LIMIT 10			
+			) AS final
+			ORDER BY total_dist
+		) AS inicial
+		INNER JOIN (
+			SELECT colum_one.trip_id, colum_two.stop_id AS inicio, colum_two.stop_sequence AS inicio_seq, colum_one.stop_id AS fim, colum_one.stop_sequence AS fim_seq 
+			FROM (
+					SELECT trip_id, stop_id, stop_sequence FROM stop_times
+				) AS colum_one
+				JOIN (
+					SELECT trip_id, stop_id, stop_sequence FROM stop_times
+				) colum_two ON colum_one.trip_id = colum_two.trip_id AND colum_two.stop_sequence < colum_one.stop_sequence
+		) terminal ON terminal.inicio = inicial.parada_inicial AND terminal.fim = inicial.parada_final
+		ORDER BY total_dist
+		LIMIT 1 -- RETORNA UM ÚNICO RESULTADO
+	) beta ON beta.trip_id = trips.trip_id
+) func ON routes.route_id = func.route_id;
